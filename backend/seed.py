@@ -12,14 +12,18 @@ from datetime import date, datetime, timedelta, timezone
 from app.database import Base, SessionLocal, engine
 from app.models import (
     Academy,
+    Achievement,
     AvatarConfig,
     Attendance,
     BeltHistory,
+    Goal,
     Payment,
+    StudentAchievement,
     StudentProfile,
     User,
 )
 from app.core.security import hash_password
+from app.services.achievement_service import check_and_unlock, seed_achievements
 from app.services.gamification_service import belt_to_color, calculate_level, calculate_outfit
 
 
@@ -29,6 +33,8 @@ def run_seed():
 
     try:
         # Clean existing data
+        db.query(StudentAchievement).delete()
+        db.query(Goal).delete()
         db.query(Attendance).delete()
         db.query(BeltHistory).delete()
         db.query(Payment).delete()
@@ -36,9 +42,13 @@ def run_seed():
         db.query(StudentProfile).delete()
         db.query(User).delete()
         db.query(Academy).delete()
+        db.query(Achievement).delete()
         db.commit()
 
-        # 1. Create academy
+        # 1. Seed achievements (15 default ones)
+        seed_achievements(db)
+
+        # 2. Create academy
         academy = Academy(name="Academia Dragão")
         db.add(academy)
         db.flush()
@@ -79,6 +89,7 @@ def run_seed():
         ]
 
         today = date.today()
+        profile_ids_for_goals = []
 
         for idx, sdata in enumerate(students_data):
             user = User(
@@ -135,6 +146,38 @@ def run_seed():
                 due = today.replace(day=10) - timedelta(days=30 * month_offset)
                 pay_status = "paid" if month_offset > 0 else "pending"
                 db.add(Payment(student_id=profile.id, amount=150.0, status=pay_status, due_date=due))
+
+            db.flush()
+            profile_ids_for_goals.append((profile.id, today))
+
+        db.commit()
+
+        # Auto-unlock achievements based on seeded data
+        for profile_id, _ in profile_ids_for_goals:
+            check_and_unlock(profile_id, db)
+
+        # Add sample goals for each student
+        iso_year, iso_week, _ = today.isocalendar()
+        week_period = f"{iso_year}-W{iso_week:02d}"
+        month_period = today.strftime("%Y-%m")
+
+        for profile_id, _ in profile_ids_for_goals:
+            db.add(Goal(
+                student_id=profile_id,
+                type="weekly_trainings",
+                target=4,
+                current=2,
+                period=week_period,
+                completed=False,
+            ))
+            db.add(Goal(
+                student_id=profile_id,
+                type="monthly_trainings",
+                target=16,
+                current=7,
+                period=month_period,
+                completed=False,
+            ))
 
         db.commit()
         print("Seed executado com sucesso!")

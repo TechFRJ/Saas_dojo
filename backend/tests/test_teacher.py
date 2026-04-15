@@ -53,8 +53,12 @@ def test_list_students(client, teacher_token, student_token):
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
-    assert len(resp.json()) >= 1
+    data = resp.json()
+    assert "items" in data
+    assert "total" in data
+    assert "page" in data
+    assert "pages" in data
+    assert len(data["items"]) >= 1
 
 
 def test_list_students_search(client, teacher_token):
@@ -68,7 +72,7 @@ def test_list_students_search(client, teacher_token):
         headers={"Authorization": f"Bearer {teacher_token}"},
     )
     assert resp.status_code == 200
-    names = [s["name"] for s in resp.json()]
+    names = [s["name"] for s in resp.json()["items"]]
     assert any("João" in n for n in names)
 
 
@@ -76,7 +80,7 @@ def test_get_student_detail(client, teacher_token, student_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
 
     resp = client.get(
@@ -93,7 +97,7 @@ def test_register_attendance(client, teacher_token, student_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
 
     resp = client.post(
@@ -111,7 +115,7 @@ def test_attendance_duplicate_returns_error(client, teacher_token, student_token
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
 
     client.post(
@@ -134,7 +138,7 @@ def test_attendance_updates_points(client, teacher_token, student_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student = students[0]
     initial_points = student["points"]
 
@@ -155,7 +159,7 @@ def test_promote_belt_creates_history(client, teacher_token, student_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
 
     resp = client.post(
@@ -179,7 +183,7 @@ def test_promote_belt_updates_avatar(client, teacher_token, student_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
 
     resp = client.post(
@@ -196,7 +200,7 @@ def test_create_payment(client, teacher_token, student_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
 
     resp = client.post(
@@ -214,7 +218,7 @@ def test_update_payment_status(client, teacher_token, student_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
 
     payment = client.post(

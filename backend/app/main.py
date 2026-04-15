@@ -5,14 +5,18 @@ from fastapi.responses import JSONResponse
 from app.database import Base, engine
 from app.models import (  # noqa: F401 — ensure all models are registered before create_all
     Academy,
+    Achievement,
     AvatarConfig,
     Attendance,
     BeltHistory,
+    Goal,
     Payment,
+    StudentAchievement,
     StudentProfile,
     User,
 )
 from app.routes import auth, student, teacher
+from app.routes import reports
 
 Base.metadata.create_all(bind=engine)
 
@@ -66,3 +70,4 @@ def health_check():
 app.include_router(auth.router)
 app.include_router(teacher.router)
 app.include_router(student.router)
+app.include_router(reports.router)

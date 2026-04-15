@@ -7,11 +7,15 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_student
 from app.database import get_db
+from app.models.achievement import Achievement, StudentAchievement
 from app.models.attendance import Attendance
 from app.models.belt import BeltHistory
+from app.models.goal import Goal
 from app.models.payment import Payment
 from app.models.student import StudentProfile
 from app.models.user import User
+from app.schemas.achievement import AchievementOut, StudentAchievementsOut
+from app.schemas.goal import GoalOut
 from app.schemas.student import AttendanceOut, AvatarOut, BeltHistoryOut, PaymentOut
 
 router = APIRouter(prefix="/api/student", tags=["student"])
@@ -121,6 +125,61 @@ def get_payments(
         db.query(Payment)
         .filter(Payment.student_id == profile.id)
         .order_by(Payment.due_date.desc())
+        .all()
+    )
+
+
+@router.get("/achievements", response_model=StudentAchievementsOut)
+def get_achievements(
+    current_user: User = Depends(require_student),
+    db: Session = Depends(get_db),
+):
+    profile = _get_my_profile(current_user.id, db)
+
+    all_achievements = db.query(Achievement).all()
+    unlocked_map = {
+        sa.achievement_id: sa.unlocked_at
+        for sa in db.query(StudentAchievement)
+        .filter(StudentAchievement.student_id == profile.id)
+        .all()
+    }
+
+    unlocked = []
+    locked = []
+    for ach in all_achievements:
+        out = AchievementOut(
+            id=ach.id,
+            code=ach.code,
+            title=ach.title,
+            description=ach.description,
+            icon=ach.icon,
+            category=ach.category,
+            points_reward=ach.points_reward,
+            unlocked_at=unlocked_map.get(ach.id),
+        )
+        if ach.id in unlocked_map:
+            unlocked.append(out)
+        else:
+            locked.append(out)
+
+    return StudentAchievementsOut(
+        unlocked=unlocked,
+        locked=locked,
+        total_unlocked=len(unlocked),
+        total=len(all_achievements),
+    )
+
+
+@router.get("/goals", response_model=list[GoalOut])
+def get_goals(
+    current_user: User = Depends(require_student),
+    db: Session = Depends(get_db),
+):
+    profile = _get_my_profile(current_user.id, db)
+    return (
+        db.query(Goal)
+        .filter(Goal.student_id == profile.id)
+        .order_by(Goal.created_at.desc())
         .all()
     )
 

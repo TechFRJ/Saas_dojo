@@ -1,5 +1,5 @@
 import api from "./api";
-import { BeltHistory, CalendarDay, Payment, StudentMe } from "@/types";
+import { BeltHistory, CalendarDay, Goal, Payment, StudentAchievements, StudentMe } from "@/types";
 
 export async function getMe(): Promise<StudentMe> {
   const { data } = await api.get<StudentMe>("/api/student/me");
@@ -29,5 +29,15 @@ export async function getBeltHistory(): Promise<BeltHistory[]> {
 
 export async function getPayments(): Promise<Payment[]> {
   const { data } = await api.get<Payment[]>("/api/student/payments");
+  return data;
+}
+
+export async function getAchievements(): Promise<StudentAchievements> {
+  const { data } = await api.get<StudentAchievements>("/api/student/achievements");
+  return data;
+}
+
+export async function getGoals(): Promise<Goal[]> {
+  const { data } = await api.get<Goal[]>("/api/student/goals");
   return data;
 }

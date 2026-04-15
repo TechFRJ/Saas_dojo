@@ -3,9 +3,11 @@ from datetime import date, datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.models.achievement import Achievement
 from app.models.attendance import Attendance
 from app.models.avatar import AvatarConfig
 from app.models.student import StudentProfile
+from app.services.achievement_service import check_and_unlock
 from app.services.gamification_service import (
     belt_to_color,
     calculate_level,
@@ -14,9 +16,12 @@ from app.services.gamification_service import (
     calculate_streak,
     check_streak_bonus,
 )
+from app.services.goal_service import update_goal_progress
 
 
-def register(student_id: int, db: Session, training_date: date = None) -> Attendance:
+def register(
+    student_id: int, db: Session, training_date: date = None
+) -> tuple[Attendance, list[Achievement]]:
     if training_date is None:
         training_date = date.today()
 
@@ -62,4 +67,7 @@ def register(student_id: int, db: Session, training_date: date = None) -> Attend
     db.commit()
     db.refresh(attendance)
 
-    return attendance
+    new_achievements = check_and_unlock(student_id, db)
+    update_goal_progress(student_id, db)
+
+    return attendance, new_achievements

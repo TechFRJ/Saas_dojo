@@ -9,9 +9,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 if TYPE_CHECKING:
+    from app.models.achievement import StudentAchievement
     from app.models.attendance import Attendance
     from app.models.avatar import AvatarConfig
     from app.models.belt import BeltHistory
+    from app.models.goal import Goal
     from app.models.payment import Payment
     from app.models.user import User
 
@@ -48,4 +50,10 @@ class StudentProfile(Base):
     )
     belt_history: Mapped[List["BeltHistory"]] = relationship(
         "BeltHistory", back_populates="student", order_by="BeltHistory.promoted_at.desc()"
+    )
+    achievements: Mapped[List["StudentAchievement"]] = relationship(
+        "StudentAchievement", back_populates="student"
+    )
+    goals: Mapped[List["Goal"]] = relationship(
+        "Goal", back_populates="student", order_by="Goal.created_at.desc()"
     )

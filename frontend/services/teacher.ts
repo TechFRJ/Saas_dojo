@@ -1,9 +1,12 @@
 import api from "./api";
 import {
-  Attendance,
+  AttendanceWithAchievements,
   Belt,
   Dashboard,
+  Goal,
   Payment,
+  PaginatedStudents,
+  StudentAchievements,
   StudentDetail,
   StudentProfile,
 } from "@/types";
@@ -16,8 +19,10 @@ export async function getDashboard(): Promise<Dashboard> {
 export async function listStudents(params?: {
   belt?: Belt;
   search?: string;
-}): Promise<StudentProfile[]> {
-  const { data } = await api.get<StudentProfile[]>("/api/teacher/students", {
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedStudents> {
+  const { data } = await api.get<PaginatedStudents>("/api/teacher/students", {
     params,
   });
   return data;
@@ -53,10 +58,11 @@ export async function updateStudent(
 
 export async function registerAttendance(
   studentId: number
-): Promise<Attendance> {
-  const { data } = await api.post<Attendance>("/api/teacher/attendance", {
-    student_id: studentId,
-  });
+): Promise<AttendanceWithAchievements> {
+  const { data } = await api.post<AttendanceWithAchievements>(
+    "/api/teacher/attendance",
+    { student_id: studentId }
+  );
   return data;
 }
 
@@ -97,5 +103,24 @@ export async function promoteBelt(
     student_id: studentId,
     belt,
   });
+  return data;
+}
+
+export async function getStudentAchievements(
+  studentId: number
+): Promise<StudentAchievements> {
+  const { data } = await api.get<StudentAchievements>(
+    `/api/teacher/students/${studentId}/achievements`
+  );
+  return data;
+}
+
+export async function createGoal(payload: {
+  student_id: number;
+  type: string;
+  target: number;
+  period: string;
+}): Promise<Goal> {
+  const { data } = await api.post<Goal>("/api/teacher/goals", payload);
   return data;
 }

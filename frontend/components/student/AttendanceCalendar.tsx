@@ -16,61 +16,99 @@ interface AttendanceCalendarProps {
 }
 
 export function AttendanceCalendar({ monthsBack = 3 }: AttendanceCalendarProps) {
-  const [calendarData, setCalendarData] = useState<
-    { year: number; month: number; days: CalendarDay[] }[]
-  >([]);
+  const today = new Date();
+  const [offset, setOffset] = useState(0); // 0 = current month, negative = past
+  const [calendarData, setCalendarData] = useState<CalendarDay[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const displayDate = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+  const year = displayDate.getFullYear();
+  const month = displayDate.getMonth() + 1;
+
+  const minOffset = -(monthsBack - 1);
+  const maxOffset = 0;
 
   useEffect(() => {
-    async function load() {
-      const today = new Date();
-      const results: { year: number; month: number; days: CalendarDay[] }[] = [];
+    setLoading(true);
+    getAttendanceCalendar(year, month)
+      .then(setCalendarData)
+      .catch(() => setCalendarData([]))
+      .finally(() => setLoading(false));
+  }, [year, month]);
 
-      for (let i = monthsBack - 1; i >= 0; i--) {
-        const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-        const year = d.getFullYear();
-        const month = d.getMonth() + 1;
-        try {
-          const days = await getAttendanceCalendar(year, month);
-          results.push({ year, month, days });
-        } catch {
-          results.push({ year, month, days: [] });
-        }
-      }
-
-      setCalendarData(results);
-    }
-    load();
-  }, [monthsBack]);
+  const presentCount = calendarData.filter((d) => d.present).length;
 
   return (
-    <div className="space-y-6">
-      {calendarData.map(({ year, month, days }) => (
-        <MonthGrid key={`${year}-${month}`} year={year} month={month} days={days} />
-      ))}
+    <div className="space-y-3">
+      {/* Navigation header */}
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setOffset((o) => Math.max(o - 1, minOffset - 2))}
+          disabled={offset <= minOffset}
+          className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+          aria-label="Mês anterior"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-gray-600">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <div className="text-center">
+          <p className="text-sm font-semibold text-gray-800">
+            {MONTHS[month - 1]} {year}
+          </p>
+          {!loading && (
+            <p className="text-xs text-gray-500">{presentCount} treinos</p>
+          )}
+        </div>
+        <button
+          onClick={() => setOffset((o) => Math.min(o + 1, maxOffset))}
+          disabled={offset >= maxOffset}
+          className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+          aria-label="Próximo mês"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-gray-600">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="h-32 flex items-center justify-center">
+          <div className="animate-spin w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full" />
+        </div>
+      ) : (
+        <MonthGrid year={year} month={month} days={calendarData} />
+      )}
     </div>
   );
 }
 
-function MonthGrid({
-  year,
-  month,
-  days,
-}: {
-  year: number;
-  month: number;
-  days: CalendarDay[];
-}) {
+function MonthGrid({ year, month, days }: { year: number; month: number; days: CalendarDay[] }) {
   const firstDay = new Date(year, month - 1, 1).getDay();
-  const presentCount = days.filter((d) => d.present).length;
+  const today = new Date();
+
+  // Calculate week intensity: most recent week = darkest green
+  const presentDays = days.filter((d) => d.present).map((d) => d.date);
+  const lastPresent = presentDays.length > 0 ? presentDays[presentDays.length - 1] : null;
+
+  function getIntensity(dateStr: string): number {
+    if (!lastPresent) return 1;
+    const last = new Date(lastPresent + "T00:00:00");
+    const curr = new Date(dateStr + "T00:00:00");
+    const diffWeeks = Math.floor((last.getTime() - curr.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    if (diffWeeks <= 0) return 3;
+    if (diffWeeks <= 1) return 2;
+    return 1;
+  }
+
+  const intensityClasses: Record<number, string> = {
+    1: "bg-green-300 text-green-900",
+    2: "bg-green-400 text-white",
+    3: "bg-green-600 text-white",
+  };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-gray-700">
-          {MONTHS[month - 1]} {year}
-        </h3>
-        <span className="text-xs text-gray-500">{presentCount} treinos</span>
-      </div>
       <div className="grid grid-cols-7 gap-1 mb-1">
         {WEEKDAYS.map((d, i) => (
           <div key={i} className="text-center text-xs text-gray-400 font-medium">
@@ -82,34 +120,34 @@ function MonthGrid({
         {Array.from({ length: firstDay }).map((_, i) => (
           <div key={`empty-${i}`} />
         ))}
-        {days.map((day) => (
-          <DayCell key={day.date} day={day} />
-        ))}
+        {days.map((day) => {
+          const date = new Date(day.date + "T00:00:00");
+          const isToday =
+            date.getDate() === today.getDate() &&
+            date.getMonth() === today.getMonth() &&
+            date.getFullYear() === today.getFullYear();
+          const intensity = day.present ? getIntensity(day.date) : 0;
+          const colorClass = day.present
+            ? intensityClasses[intensity]
+            : isToday
+            ? "bg-gray-200 text-gray-900 font-bold"
+            : "bg-gray-50 text-gray-400";
+
+          return (
+            <div
+              key={day.date}
+              className={`aspect-square rounded flex items-center justify-center text-xs font-medium transition-colors cursor-default group relative ${colorClass}`}
+            >
+              {date.getDate()}
+              {day.present && (
+                <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs rounded px-2 py-0.5 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
+                  Treinou neste dia
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
-    </div>
-  );
-}
-
-function DayCell({ day }: { day: CalendarDay }) {
-  const date = new Date(day.date + "T00:00:00");
-  const today = new Date();
-  const isToday =
-    date.getDate() === today.getDate() &&
-    date.getMonth() === today.getMonth() &&
-    date.getFullYear() === today.getFullYear();
-
-  return (
-    <div
-      className={`aspect-square rounded flex items-center justify-center text-xs font-medium transition-colors ${
-        day.present
-          ? "bg-green-500 text-white"
-          : isToday
-          ? "bg-gray-200 text-gray-900 font-bold"
-          : "bg-gray-50 text-gray-400"
-      }`}
-      title={day.date}
-    >
-      {date.getDate()}
     </div>
   );
 }

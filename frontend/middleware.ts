@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const TEACHER_ROUTES = ["/dashboard", "/students"];
+const TEACHER_ROUTES = ["/dashboard", "/students", "/reports"];
 const STUDENT_ROUTES = ["/me"];
 const PUBLIC_ROUTES = ["/login", "/api"];
 

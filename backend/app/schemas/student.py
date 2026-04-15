@@ -99,4 +99,15 @@ class DashboardOut(BaseModel):
     active_students: int
 
 
+class PaginatedStudents(BaseModel):
+    items: list[StudentProfileOut]
+    total: int
+    page: int
+    pages: int
+
+
+class AttendanceWithAchievementsOut(AttendanceOut):
+    new_achievements: list = []
+
+
 StudentDetailOut.model_rebuild()

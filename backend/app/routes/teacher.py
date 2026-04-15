@@ -12,12 +12,16 @@ from app.models.belt import BeltHistory
 from app.models.payment import Payment
 from app.models.student import StudentProfile
 from app.models.user import User
+from app.schemas.achievement import AchievementOut, StudentAchievementsOut
+from app.schemas.goal import GoalCreate, GoalOut
 from app.schemas.student import (
     AttendanceCreate,
     AttendanceOut,
+    AttendanceWithAchievementsOut,
     BeltHistoryOut,
     BeltUpdate,
     DashboardOut,
+    PaginatedStudents,
     PaymentCreate,
     PaymentOut,
     PaymentUpdate,
@@ -27,8 +31,11 @@ from app.schemas.student import (
     StudentUpdate,
 )
 from app.services import attendance_service
+from app.services.achievement_service import check_and_unlock
 from app.services.gamification_service import belt_to_color, calculate_level, calculate_outfit
 from app.core.security import hash_password
+from app.models.achievement import Achievement, StudentAchievement
+from app.models.goal import Goal
 
 router = APIRouter(prefix="/api/teacher", tags=["teacher"])
 
@@ -129,10 +136,12 @@ def create_student(
     return profile
 
 
-@router.get("/students", response_model=list[StudentProfileOut])
+@router.get("/students", response_model=PaginatedStudents)
 def list_students(
     belt: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
@@ -148,9 +157,20 @@ def list_students(
     if belt:
         query = query.filter(StudentProfile.belt == belt)
     if search:
-        query = query.filter(StudentProfile.name.ilike(f"%{search}%"))
+        query = query.filter(
+            (StudentProfile.name.ilike(f"%{search}%"))
+            | (
+                StudentProfile.user_id.in_(
+                    db.query(User.id).filter(User.email.ilike(f"%{search}%"))
+                )
+            )
+        )
 
-    return query.all()
+    total = query.count()
+    pages = max(1, (total + limit - 1) // limit)
+    items = query.offset((page - 1) * limit).limit(limit).all()
+
+    return PaginatedStudents(items=items, total=total, page=page, pages=pages)
 
 
 @router.get("/students/{student_id}", response_model=StudentDetailOut)
@@ -210,14 +230,32 @@ def update_student(
     return profile
 
 
-@router.post("/attendance", response_model=AttendanceOut, status_code=201)
+@router.post("/attendance", status_code=201)
 def register_attendance(
     data: AttendanceCreate,
     current_user: User = Depends(require_teacher),
     db: Session = Depends(get_db),
 ):
     _get_student_in_academy(data.student_id, current_user.academy_id, db)
-    return attendance_service.register(data.student_id, db)
+    attendance, new_achievements = attendance_service.register(data.student_id, db)
+    return {
+        "id": attendance.id,
+        "student_id": attendance.student_id,
+        "date": str(attendance.date),
+        "created_at": attendance.created_at,
+        "new_achievements": [
+            {
+                "id": a.id,
+                "code": a.code,
+                "title": a.title,
+                "description": a.description,
+                "icon": a.icon,
+                "category": a.category,
+                "points_reward": a.points_reward,
+            }
+            for a in new_achievements
+        ],
+    }
 
 
 @router.get("/attendance", response_model=list[AttendanceOut])
@@ -346,8 +384,70 @@ def promote_belt(
     )
     db.add(history)
     db.commit()
+    check_and_unlock(profile.id, db)
     db.refresh(profile)
     return profile
+
+
+@router.get("/students/{student_id}/achievements", response_model=StudentAchievementsOut)
+def get_student_achievements(
+    student_id: int,
+    current_user: User = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    _get_student_in_academy(student_id, current_user.academy_id, db)
+
+    all_achievements = db.query(Achievement).all()
+    unlocked_map = {
+        sa.achievement_id: sa.unlocked_at
+        for sa in db.query(StudentAchievement)
+        .filter(StudentAchievement.student_id == student_id)
+        .all()
+    }
+
+    unlocked = []
+    locked = []
+    for ach in all_achievements:
+        out = AchievementOut(
+            id=ach.id,
+            code=ach.code,
+            title=ach.title,
+            description=ach.description,
+            icon=ach.icon,
+            category=ach.category,
+            points_reward=ach.points_reward,
+            unlocked_at=unlocked_map.get(ach.id),
+        )
+        if ach.id in unlocked_map:
+            unlocked.append(out)
+        else:
+            locked.append(out)
+
+    return StudentAchievementsOut(
+        unlocked=unlocked,
+        locked=locked,
+        total_unlocked=len(unlocked),
+        total=len(all_achievements),
+    )
+
+
+@router.post("/goals", response_model=GoalOut, status_code=201)
+def create_goal(
+    data: GoalCreate,
+    current_user: User = Depends(require_teacher),
+    db: Session = Depends(get_db),
+):
+    _get_student_in_academy(data.student_id, current_user.academy_id, db)
+    goal = Goal(
+        student_id=data.student_id,
+        type=data.type,
+        target=data.target,
+        period=data.period,
+    )
+    db.add(goal)
+    db.commit()
+    db.refresh(goal)
+    return goal
 
 
 def _get_student_in_academy(

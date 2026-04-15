@@ -117,7 +117,7 @@ def test_student_attendance_list(client, student_token, teacher_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
 
     client.post(
@@ -154,7 +154,7 @@ def test_student_belt_history(client, student_token, teacher_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
 
     client.post(
@@ -177,7 +177,7 @@ def test_student_payments(client, student_token, teacher_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
 
     client.post(
@@ -200,7 +200,7 @@ def test_streak_bonus_applied_at_5(client, teacher_token, student_token):
     students = client.get(
         "/api/teacher/students",
         headers={"Authorization": f"Bearer {teacher_token}"},
-    ).json()
+    ).json()["items"]
     student_id = students[0]["id"]
     initial_points = students[0]["points"]
 

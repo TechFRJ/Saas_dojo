@@ -26,6 +26,7 @@ export interface StudentDetail extends StudentProfile {
   belt_history: BeltHistory[];
   attendances: Attendance[];
   payments: Payment[];
+  goals?: Goal[];
 }
 
 export interface BeltHistory {
@@ -77,4 +78,90 @@ export interface AuthUser {
   email: string;
   role: Role;
   academy_id: number;
+}
+
+// Achievements
+export type AchievementCategory = "presença" | "faixa" | "pontos" | "streak";
+
+export interface Achievement {
+  id: number;
+  code: string;
+  title: string;
+  description: string;
+  icon: string;
+  category: AchievementCategory;
+  points_reward: number;
+  unlocked_at?: string;
+}
+
+export interface StudentAchievements {
+  unlocked: Achievement[];
+  locked: Achievement[];
+  total_unlocked: number;
+  total: number;
+}
+
+// Goals
+export type GoalType = "weekly_trainings" | "monthly_trainings" | "streak_target";
+
+export interface Goal {
+  id: number;
+  student_id: number;
+  type: GoalType;
+  target: number;
+  current: number;
+  period: string;
+  completed: boolean;
+  created_at: string;
+}
+
+// Pagination
+export interface PaginatedStudents {
+  items: StudentProfile[];
+  total: number;
+  page: number;
+  pages: number;
+}
+
+// Attendance with achievements
+export interface AttendanceWithAchievements extends Attendance {
+  new_achievements: Achievement[];
+}
+
+// Reports
+export interface AttendanceReportWeekday {
+  day: string;
+  avg: number;
+  total: number;
+}
+
+export interface AttendanceReport {
+  period_days: number;
+  total_trainings: number;
+  avg_per_day: number;
+  best_day: { date: string; count: number } | null;
+  worst_day: { date: string; count: number } | null;
+  by_weekday: AttendanceReportWeekday[];
+}
+
+export interface ChurnRiskStudent {
+  student_id: number;
+  name: string;
+  days_since_last_training: number;
+  streak_lost: boolean;
+  risk: "high" | "medium" | "low";
+}
+
+export interface RevenueMonth {
+  month: string;
+  paid: number;
+  pending: number;
+  late: number;
+}
+
+export interface RevenueReport {
+  months: RevenueMonth[];
+  total_paid: number;
+  total_pending: number;
+  collection_rate: number;
 }
